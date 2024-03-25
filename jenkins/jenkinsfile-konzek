@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+    
+    environment {
+        APP_NAME = "konzek"
+        APP_REPO_NAME = "konzek-repo/${APP_NAME}-app"
+        AWS_REGION = "us-east-1"
+        AWS_ACCOUNT_ID = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ANS_KEYPAIR = "konzek-${APP_NAME}-${BUILD_NUMBER}.key"
+        ANSIBLE_PRIVATE_KEY_FILE = "${WORKSPACE}/${ANS_KEYPAIR}"
+        ANSIBLE_HOST_KEY_CHECKING = "False"
+    }
+    
+    stages {
+        stage('Create ECR Repo') {
+            steps {
+                echo "Creating ECR Repo for ${APP_NAME} app"
+                sh """
+                aws ecr describe-repositories --region ${AWS_REGION} --repository-name ${APP_REPO_NAME} || \
+                aws ecr create-repository \
+                    --repository-name ${APP_REPO_NAME} \
+                    --image-scanning-configuration scanOnPush=true \
+                    --image-tag-mutability MUTABLE \
+                    --region ${AWS_REGION}
+                """
+            }
+        }
+        
+        stage('Prepare Tags for Docker Images') {
+            steps {
+                echo 'Preparing Tags for Docker Images'
+                sh ". ./prepare-tags-ecr-for-docker-images.sh"
+            }
+        }
+        
+        stage('Build App Docker Images') {
+            steps {
+                echo 'Building App Dev Images'
+                sh ". ./jenkins/build-docker-images-for-ecr.sh"
+                sh 'docker image ls'
+            }
+        }
+        
+        stage('Push Images to ECR Repo') {
+            steps {
+                echo "Pushing ${APP_NAME} App Images to ECR Repo"
+                sh ". ./jenkins/push-docker-images-to-ecr.sh"
+            }
+        }
+        
+        stage('Create Key Pair for Ansible') {
+            steps {
+                echo "Creating Key Pair for ${APP_NAME} App"
+                sh "aws ec2 create-key-pair --region ${AWS_REGION} --key-name ${ANS_KEYPAIR} --query KeyMaterial --output text > ${ANS_KEYPAIR}"
+                sh "chmod 400 ${ANS_KEYPAIR}"
+            }
+        }
+        
+        stage('Deploy App on Kubernetes Cluster') {
+            steps {
+                echo 'Deploying App on Kubernetes Cluster'
+                sh '. ./k8s-manifestfiles.sh'
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Deleting all local images'
+            sh 'docker image prune -af'
+        }
+    }
+}
