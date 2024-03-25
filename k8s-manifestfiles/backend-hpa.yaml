@@ -1,0 +1,16 @@
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment  # Ölçeklendirmeyi uygulayacağınız Deployment'ın adı
+  minReplicas: 2  # Minimum pod sayısı
+  maxReplicas: 5  # Maksimum pod sayısı
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50  # CPU kullanımı yüzdesi

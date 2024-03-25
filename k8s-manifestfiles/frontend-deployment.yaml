@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 3    # İstenen çoğaltma sayısı burada belirtilir
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: frontend-server:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "64Mi"  # Minimum bellek talebi
+            cpu: "250m"      # Minimum CPU talebi
+          limits:
+            memory: "128Mi" # Maksimum bellek sınırı
+            cpu: "500m"     # Maksimum CPU sınırı
