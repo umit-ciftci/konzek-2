@@ -1,0 +1,25 @@
+version: '3'
+services:
+  frontend-server:
+    image: "{{ .Values.IMAGE_TAG_FONTEND_SERVER }}"
+    ports:
+     - 3000:3000
+    labels:
+      kompose.image-pull-secret: "regcred"
+  backend-server:
+    image: "{{ .Values.IMAGE_TAG_BACKEND_SERVER }}"
+    ports:
+     - 8081:8081
+    labels:
+      kompose.image-pull-secret: "regcred"
+      kompose.service.expose: "{{ .Values.DNS_NAME }}"
+      kompose.service.expose.ingress-class-name: "nginx"
+      kompose.service.type: "nodeport"
+      kompose.service.nodeport.port: "30001"
+  database-server:
+    image: mysql:5.7.8
+    environment: 
+      MYSQL_ROOT_PASSWORD: konzek
+      MYSQL_DATABASE: konzek
+    ports:
+    - 3306:3306
