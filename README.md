@@ -1010,3 +1010,42 @@ kubectl apply -f frontend-hpa.yaml
 kubectl apply -f backend-hpa.yaml
 kubectl apply -f database-hpa.yaml
 ```
+
+### Ansible ile Kubernetes üzrinden uygulamanın dağıtılması
+ansible/playbook/konzek-deploy-template dosyasını oluşturduk.
+```
+- hosts: role_master
+  tasks:
+
+  - name: Create .docker folder
+    file:
+      path: /home/ubuntu/.docker
+      state: directory
+      mode: '0755'
+
+  - name: copy the docker config file
+    become: yes
+    copy: 
+      src: $JENKINS_HOME/.docker/config.json
+      dest: /home/ubuntu/.docker/config.json
+
+  - name: deploy konzek application
+    shell: |
+      helm plugin install https://github.com/hypnoglow/helm-s3.git
+      kubectl create ns konzek-dev
+      kubectl delete secret regcred -n konzek-dev || true
+      kubectl create secret generic regcred -n konzek-dev \
+        --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json \
+        --type=kubernetes.io/dockerconfigjson
+      AWS_REGION=$AWS_REGION helm repo add stable-konzek s3://konzek-helm-charts-umit/stable/myapp/
+      AWS_REGION=$AWS_REGION helm repo update
+      AWS_REGION=$AWS_REGION helm upgrade --install \
+        konzek-app-release stable-konzek/konzek_chart --version ${BUILD_NUMBER} \
+        --namespace konzek-dev
+```
+#### playbook içindeki her bir görevin ne işe yaradığı açıklanmıştır:
+
+1. Create .docker folder: /home/ubuntu dizini altında .docker adında bir klasör oluşturulur. Bu, Docker yapılandırma dosyasının saklanacağı yerdir.
+2. copy the docker config file: Docker yapılandırma dosyası, Jenkins'in ev dizininden ($JENKINS_HOME) kopyalanarak /home/ubuntu/.docker/config.json dizinine yapıştırılır. Bu adım, Docker tarafından kullanılan gerekli kimlik bilgilerini içerir.
+3. deploy konzek application: Bu görev, Kubernetes üzerinde bir uygulamanın dağıtılmasını sağlar.
+
