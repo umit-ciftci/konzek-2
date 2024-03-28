@@ -62,20 +62,20 @@ appVersion: 0.1.0
 # ``Package`` the local Helm chart.
 
 cd k8s
-helm package petclinic_chart/ 
+helm package konzek_chart/ 
 
 # Store the local package in the Amazon S3 Helm repository.
 
-HELM_S3_MODE=3 AWS_REGION=us-east-1 helm s3 push ./petclinic_chart-0.0.1.tgz stable-petclinicapp
+HELM_S3_MODE=3 AWS_REGION=us-east-1 helm s3 push ./konzek_chart-0.0.1.tgz stable-konzekapp
 
 # Push the new version to the Helm repository in Amazon S3.
 
-HELM_S3_MODE=3 AWS_REGION=us-east-1 helm s3 push ./petclinic_chart-0.0.2.tgz stable-petclinicapp
+HELM_S3_MODE=3 AWS_REGION=us-east-1 helm s3 push ./konzek_chart-0.0.2.tgz stable-konzekapp
 
 # Verify the updated Helm chart.
 
 helm repo update
-helm search repo stable-petclinicapp
+helm search repo stable-konzekapp
 
 
 ### Bu kısımda Helm'in nasıl yapılacağını belirttim , kendim Mid-level taskini  yaparken uygulamadım fakat her adımın  yapılışını gösterdim .
