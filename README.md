@@ -1049,3 +1049,9 @@ ansible/playbook/konzek-deploy-template dosyasını oluşturduk.
 2. copy the docker config file: Docker yapılandırma dosyası, Jenkins'in ev dizininden ($JENKINS_HOME) kopyalanarak /home/ubuntu/.docker/config.json dizinine yapıştırılır. Bu adım, Docker tarafından kullanılan gerekli kimlik bilgilerini içerir.
 3. deploy konzek application: Bu görev, Kubernetes üzerinde bir uygulamanın dağıtılmasını sağlar.
 
+##### Kodları hazırladıktan sonra Github repoya pushluyoruz
+
+git add .
+git commit -m 'added scripts for Konzek'
+git push
+
