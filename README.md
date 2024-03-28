@@ -818,7 +818,195 @@ pipeline {
     }
 }
 ```
+- jenkins dosyası altında build-docker-images-for-ecr.sh  oluşturduk.
+```
+docker build --force-rm -t "${IMAGE_TAG_BACKEND_SERVER}" "${WORKSPACE}/backend-server"
+docker build --force-rm -t "${IMAGE_TAG_FRONTEND_SERVER}" "${WORKSPACE}/frontend-server"
+docker build --force-rm -t "${IMAGE_TAG_DATABASE_SERVER}" "${WORKSPACE}/database-server"
+```
 
+- jenkins dosyası altında prepare-tags-ecr-for-docker-images.sh oluşturduk.
+```
+docker tag frontend-server:latest ${ECR_REGISTRY}/${APP_REPO_NAME}:frontend-server-v1
 
+docker tag backend-server:latest ${ECR_REGISTRY}/${APP_REPO_NAME}:backend-server-v1
 
+docker tag database-server:latest ${ECR_REGISTRY}/${APP_REPO_NAME}:database-server-v1
+```
 
+- jenkins dosyası altında push-docker-images-to-ecr.sh oluşturduk.
+
+```
+#Provide credentials for Docker to login the AWS ECR and push the images
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY} 
+docker push "${IMAGE_TAG_FRONTEND_SERVER}"
+docker push "${IMAGE_TAG_BACKEND_SERVER}"
+docker push "${IMAGE_TAG_DATABASE_SERVER}"
+```
+Bunlar sayesinde jenkinsfilelar daha kolay şekile anlaşılacaktır.
+
+# Kubernetes Manifest dosyaları
+
+k8s-manifestfiles/backend-deployment.yaml dosyasını oluşturduk
+```
+ apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: backend-server:latest
+        ports:
+        - containerPort: 8081
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+```
+
+k8s-manifestfiles/database-deployment.yaml dosyasını oluşturduk
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: database
+        image: database-server:latest
+        ports:
+        - containerPort: 3306
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+```
+
+k8s-manifestfiles/frontend-deployment.yaml dosyasını oluşturduk
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 3    # İstenen çoğaltma sayısı burada belirtilir
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: frontend-server:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "64Mi"  # Minimum bellek talebi
+            cpu: "250m"      # Minimum CPU talebi
+          limits:
+            memory: "128Mi" # Maksimum bellek sınırı
+            cpu: "500m"     # Maksimum CPU sınırı
+```
+
+k8s-manifestfiles/backend-hpa.yaml dosyasını oluşturduk
+
+```
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment  # Ölçeklendirmeyi uygulayacağınız Deployment'ın adı
+  minReplicas: 2  # Minimum pod sayısı
+  maxReplicas: 5  # Maksimum pod sayısı
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50  # CPU kullanımı yüzdesi
+```
+
+ k8s-manifestfiles/database-hpa.yaml dosyasını oluşturduk
+
+```
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: database-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: database-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
+   ```
+
+  k8s-manifestfiles/frontend-hpa.yaml dosyasını oluşturduk
+```
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
+```
+
+k8s-manifestfiles/apply-manifests.sh dosyanı oluşturduk bu sayede çalıştırma komutları ile topladık.
+```
+kubectl apply -f backend-deployment.yaml
+kubectl apply -f frontend-deployment.yaml
+kubectl apply -f database-deployment.yaml
+kubectl apply -f frontend-hpa.yaml
+kubectl apply -f backend-hpa.yaml
+kubectl apply -f database-hpa.yaml
+```
